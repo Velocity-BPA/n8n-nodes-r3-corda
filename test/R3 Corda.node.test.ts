@@ -33,20 +33,20 @@ describe('R3Corda Node', () => {
       expect(node.description.outputs).toContain('main');
     });
 
-    it('should define 5 resources', () => {
+    it('should define 6 resources', () => {
       const resourceProp = node.description.properties.find(
         (p: any) => p.name === 'resource'
       );
       expect(resourceProp).toBeDefined();
       expect(resourceProp!.type).toBe('options');
-      expect(resourceProp!.options).toHaveLength(5);
+      expect(resourceProp!.options).toHaveLength(6);
     });
 
     it('should have operation dropdowns for each resource', () => {
       const operations = node.description.properties.filter(
         (p: any) => p.name === 'operation'
       );
-      expect(operations.length).toBe(5);
+      expect(operations.length).toBe(6);
     });
 
     it('should require credentials', () => {
@@ -67,185 +67,374 @@ describe('R3Corda Node', () => {
   });
 
   // Resource-specific tests
-describe('VaultQueries Resource', () => {
+describe('VaultQuery Resource', () => {
   let mockExecuteFunctions: any;
-
+  
   beforeEach(() => {
     mockExecuteFunctions = {
       getNodeParameter: jest.fn(),
-      getCredentials: jest.fn().mockResolvedValue({
+      getCredentials: jest.fn().mockResolvedValue({ 
         username: 'test-user',
         password: 'test-password',
-        baseUrl: 'http://localhost:10006/api/rest/v1',
+        baseUrl: 'https://localhost:10007/api/rest/v1'
       }),
       getInputData: jest.fn().mockReturnValue([{ json: {} }]),
       getNode: jest.fn().mockReturnValue({ name: 'Test Node' }),
       continueOnFail: jest.fn().mockReturnValue(false),
-      helpers: {
-        httpRequest: jest.fn(),
-        requestWithAuthentication: jest.fn(),
-      },
+      helpers: { httpRequest: jest.fn(), requestWithAuthentication: jest.fn() },
     };
   });
 
-  describe('queryVaultStates', () => {
+  describe('queryVaultStates operation', () => {
     it('should query vault states successfully', async () => {
-      const mockResponse = {
-        states: [
-          { ref: 'state1', data: 'test data 1' },
-          { ref: 'state2', data: 'test data 2' },
-        ],
-      };
-
-      mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-        switch (paramName) {
-          case 'operation':
-            return 'queryVaultStates';
-          case 'stateType':
-            return 'com.example.TestState';
-          case 'criteria':
-            return '{"status": "ACTIVE"}';
-          case 'sorting':
-            return '{}';
-          case 'paging':
-            return '{"pageNumber": 1, "pageSize": 100}';
-          default:
-            return '';
-        }
-      });
-
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('queryVaultStates')
+        .mockReturnValueOnce('com.example.State')
+        .mockReturnValueOnce('{}')
+        .mockReturnValueOnce('{}')
+        .mockReturnValueOnce('{"pageSize": 100, "pageNumber": 1}');
+      
+      const mockResponse = { states: [], totalStatesAvailable: 0 };
       mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
 
-      const items = [{ json: {} }];
-      const result = await executeVaultQueriesOperations.call(mockExecuteFunctions, items);
+      const result = await executeVaultQueryOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-      expect(result).toEqual([{
-        json: mockResponse,
-        pairedItem: { item: 0 },
-      }]);
+      expect(result).toHaveLength(1);
+      expect(result[0].json).toEqual(mockResponse);
+      expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'GET',
+          url: expect.stringContaining('/vault/query'),
+          headers: expect.objectContaining({
+            'Authorization': expect.stringMatching(/^Basic /),
+          }),
+        })
+      );
     });
 
-    it('should handle errors', async () => {
-      mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-        switch (paramName) {
-          case 'operation':
-            return 'queryVaultStates';
-          case 'stateType':
-            return 'com.example.TestState';
-          default:
-            return '{}';
-        }
-      });
+    it('should handle query vault states error', async () => {
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('queryVaultStates')
+        .mockReturnValueOnce('com.example.State');
+      
+      const error = new Error('Network error');
+      mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(error);
+      mockExecuteFunctions.continueOnFail.mockReturnValue(true);
 
-      mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(new Error('API Error'));
+      const result = await executeVaultQueryOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-      const items = [{ json: {} }];
-
-      await expect(executeVaultQueriesOperations.call(mockExecuteFunctions, items))
-        .rejects.toThrow('API Error');
+      expect(result).toHaveLength(1);
+      expect(result[0].json).toEqual({ error: 'Network error' });
     });
   });
 
-  describe('getVaultState', () => {
-    it('should retrieve specific vault state successfully', async () => {
-      const mockResponse = {
-        ref: 'test-state-ref',
-        data: 'test state data',
-      };
-
-      mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-        switch (paramName) {
-          case 'operation':
-            return 'getVaultState';
-          case 'stateRef':
-            return 'test-state-ref';
-          default:
-            return '';
-        }
-      });
-
+  describe('getStateByRef operation', () => {
+    it('should get state by reference successfully', async () => {
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('getStateByRef')
+        .mockReturnValueOnce('state-ref-123');
+      
+      const mockResponse = { state: { data: 'test' } };
       mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
 
-      const items = [{ json: {} }];
-      const result = await executeVaultQueriesOperations.call(mockExecuteFunctions, items);
+      const result = await executeVaultQueryOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-      expect(result).toEqual([{
-        json: mockResponse,
-        pairedItem: { item: 0 },
-      }]);
+      expect(result).toHaveLength(1);
+      expect(result[0].json).toEqual(mockResponse);
+      expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'GET',
+          url: expect.stringContaining('/vault/states/state-ref-123'),
+        })
+      );
     });
   });
 
-  describe('queryVaultTransactions', () => {
-    it('should query vault transactions successfully', async () => {
-      const mockResponse = {
-        transactions: [
-          { id: 'tx1', timestamp: '2023-01-01T00:00:00Z' },
-          { id: 'tx2', timestamp: '2023-01-02T00:00:00Z' },
-        ],
-      };
-
-      mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-        switch (paramName) {
-          case 'operation':
-            return 'queryVaultTransactions';
-          case 'criteria':
-            return '{"status": "VERIFIED"}';
-          case 'sorting':
-            return '{}';
-          case 'paging':
-            return '{"pageNumber": 1, "pageSize": 100}';
-          default:
-            return '';
-        }
-      });
-
+  describe('getAllStates operation', () => {
+    it('should get all states successfully', async () => {
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('getAllStates')
+        .mockReturnValueOnce(50)
+        .mockReturnValueOnce(2);
+      
+      const mockResponse = { states: [], totalStatesAvailable: 0 };
       mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
 
-      const items = [{ json: {} }];
-      const result = await executeVaultQueriesOperations.call(mockExecuteFunctions, items);
+      const result = await executeVaultQueryOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-      expect(result).toEqual([{
-        json: mockResponse,
-        pairedItem: { item: 0 },
-      }]);
-    });
-  });
-
-  describe('getVaultTransaction', () => {
-    it('should retrieve specific transaction successfully', async () => {
-      const mockResponse = {
-        id: 'test-txn-id',
-        timestamp: '2023-01-01T00:00:00Z',
-        inputs: [],
-        outputs: [],
-      };
-
-      mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-        switch (paramName) {
-          case 'operation':
-            return 'getVaultTransaction';
-          case 'txnId':
-            return 'test-txn-id';
-          default:
-            return '';
-        }
-      });
-
-      mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
-
-      const items = [{ json: {} }];
-      const result = await executeVaultQueriesOperations.call(mockExecuteFunctions, items);
-
-      expect(result).toEqual([{
-        json: mockResponse,
-        pairedItem: { item: 0 },
-      }]);
+      expect(result).toHaveLength(1);
+      expect(result[0].json).toEqual(mockResponse);
+      expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: expect.stringContaining('pageSize=50&pageNumber=2'),
+        })
+      );
     });
   });
 });
 
-describe('FlowExecution Resource', () => {
+describe('Flow Resource', () => {
+	let mockExecuteFunctions: any;
+
+	beforeEach(() => {
+		mockExecuteFunctions = {
+			getNodeParameter: jest.fn(),
+			getCredentials: jest.fn().mockResolvedValue({
+				baseUrl: 'https://localhost:10007/api/rest/v1',
+				username: 'test-user',
+				password: 'test-password',
+			}),
+			getInputData: jest.fn().mockReturnValue([{ json: {} }]),
+			getNode: jest.fn().mockReturnValue({ name: 'Test Node' }),
+			continueOnFail: jest.fn().mockReturnValue(false),
+			helpers: {
+				httpRequest: jest.fn(),
+			},
+		};
+	});
+
+	describe('startFlow', () => {
+		it('should start a flow successfully', async () => {
+			const mockResponse = { flowId: 'test-flow-123', status: 'RUNNING' };
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('startFlow')
+				.mockReturnValueOnce('com.example.TestFlow')
+				.mockReturnValueOnce('{"param1": "value1"}');
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+
+			const result = await executeFlowOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'POST',
+				url: 'https://localhost:10007/api/rest/v1/flow/com.example.TestFlow',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': 'Basic dGVzdC11c2VyOnRlc3QtcGFzc3dvcmQ=',
+				},
+				body: { param1: 'value1' },
+				json: true,
+				rejectUnauthorized: false,
+			});
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+		});
+
+		it('should handle flow start errors', async () => {
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('startFlow')
+				.mockReturnValueOnce('com.example.TestFlow')
+				.mockReturnValueOnce('{}');
+			mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(new Error('Flow not found'));
+			mockExecuteFunctions.continueOnFail.mockReturnValue(true);
+
+			const result = await executeFlowOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+			expect(result).toEqual([{ json: { error: 'Flow not found' }, pairedItem: { item: 0 } }]);
+		});
+	});
+
+	describe('getFlowStatus', () => {
+		it('should get flow status successfully', async () => {
+			const mockResponse = { flowId: 'test-flow-123', status: 'COMPLETED' };
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('getFlowStatus')
+				.mockReturnValueOnce('test-flow-123');
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+
+			const result = await executeFlowOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'GET',
+				url: 'https://localhost:10007/api/rest/v1/flow/test-flow-123',
+				headers: {
+					'Authorization': 'Basic dGVzdC11c2VyOnRlc3QtcGFzc3dvcmQ=',
+				},
+				json: true,
+				rejectUnauthorized: false,
+			});
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+		});
+	});
+
+	describe('getAllFlows', () => {
+		it('should get all flows successfully', async () => {
+			const mockResponse = [{ flowId: 'flow1', status: 'RUNNING' }, { flowId: 'flow2', status: 'COMPLETED' }];
+			mockExecuteFunctions.getNodeParameter.mockReturnValueOnce('getAllFlows');
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+
+			const result = await executeFlowOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'GET',
+				url: 'https://localhost:10007/api/rest/v1/flow',
+				headers: {
+					'Authorization': 'Basic dGVzdC11c2VyOnRlc3QtcGFzc3dvcmQ=',
+				},
+				json: true,
+				rejectUnauthorized: false,
+			});
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+		});
+	});
+
+	describe('killFlow', () => {
+		it('should kill flow successfully', async () => {
+			const mockResponse = { flowId: 'test-flow-123', status: 'KILLED' };
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('killFlow')
+				.mockReturnValueOnce('test-flow-123');
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+
+			const result = await executeFlowOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'DELETE',
+				url: 'https://localhost:10007/api/rest/v1/flow/test-flow-123',
+				headers: {
+					'Authorization': 'Basic dGVzdC11c2VyOnRlc3QtcGFzc3dvcmQ=',
+				},
+				json: true,
+				rejectUnauthorized: false,
+			});
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+		});
+	});
+
+	describe('getFlowCheckpoint', () => {
+		it('should get flow checkpoint successfully', async () => {
+			const mockResponse = { flowId: 'test-flow-123', checkpoint: 'checkpoint-data' };
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('getFlowCheckpoint')
+				.mockReturnValueOnce('test-flow-123');
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+
+			const result = await executeFlowOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'GET',
+				url: 'https://localhost:10007/api/rest/v1/flow/checkpoint/test-flow-123',
+				headers: {
+					'Authorization': 'Basic dGVzdC11c2VyOnRlc3QtcGFzc3dvcmQ=',
+				},
+				json: true,
+				rejectUnauthorized: false,
+			});
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+		});
+	});
+});
+
+describe('Network Resource', () => {
+	let mockExecuteFunctions: any;
+
+	beforeEach(() => {
+		mockExecuteFunctions = {
+			getNodeParameter: jest.fn(),
+			getCredentials: jest.fn().mockResolvedValue({
+				baseUrl: 'https://localhost:10007/api/rest/v1',
+				username: 'test-user',
+				password: 'test-pass',
+			}),
+			getInputData: jest.fn().mockReturnValue([{ json: {} }]),
+			getNode: jest.fn().mockReturnValue({ name: 'Test Node' }),
+			continueOnFail: jest.fn().mockReturnValue(false),
+			helpers: {
+				httpRequest: jest.fn(),
+			},
+		};
+	});
+
+	it('should get network nodes successfully', async () => {
+		const mockNodes = [{ hash: 'node1', info: 'test' }];
+		mockExecuteFunctions.getNodeParameter.mockReturnValue('getNetworkNodes');
+		mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockNodes);
+
+		const result = await executeNetworkOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+		expect(result).toEqual([{ json: mockNodes, pairedItem: { item: 0 } }]);
+		expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+			method: 'GET',
+			url: 'https://localhost:10007/api/rest/v1/network/nodes',
+			headers: {
+				'Authorization': expect.stringContaining('Basic'),
+				'Content-Type': 'application/json',
+			},
+			json: true,
+			rejectUnauthorized: false,
+		});
+	});
+
+	it('should get node by hash successfully', async () => {
+		const mockNode = { hash: 'test-hash', info: 'test' };
+		mockExecuteFunctions.getNodeParameter
+			.mockReturnValueOnce('getNodeByHash')
+			.mockReturnValueOnce('test-hash');
+		mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockNode);
+
+		const result = await executeNetworkOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+		expect(result).toEqual([{ json: mockNode, pairedItem: { item: 0 } }]);
+		expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+			method: 'GET',
+			url: 'https://localhost:10007/api/rest/v1/network/nodes/test-hash',
+			headers: {
+				'Authorization': expect.stringContaining('Basic'),
+				'Content-Type': 'application/json',
+			},
+			json: true,
+			rejectUnauthorized: false,
+		});
+	});
+
+	it('should get notaries successfully', async () => {
+		const mockNotaries = [{ name: 'notary1' }];
+		mockExecuteFunctions.getNodeParameter.mockReturnValue('getNotaries');
+		mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockNotaries);
+
+		const result = await executeNetworkOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+		expect(result).toEqual([{ json: mockNotaries, pairedItem: { item: 0 } }]);
+	});
+
+	it('should get peers successfully', async () => {
+		const mockPeers = [{ name: 'peer1' }];
+		mockExecuteFunctions.getNodeParameter.mockReturnValue('getPeers');
+		mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockPeers);
+
+		const result = await executeNetworkOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+		expect(result).toEqual([{ json: mockPeers, pairedItem: { item: 0 } }]);
+	});
+
+	it('should get network parameters successfully', async () => {
+		const mockParams = { maxTransactionSize: 1000 };
+		mockExecuteFunctions.getNodeParameter.mockReturnValue('getNetworkParameters');
+		mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockParams);
+
+		const result = await executeNetworkOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+		expect(result).toEqual([{ json: mockParams, pairedItem: { item: 0 } }]);
+	});
+
+	it('should handle errors when continueOnFail is true', async () => {
+		mockExecuteFunctions.getNodeParameter.mockReturnValue('getNetworkNodes');
+		mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(new Error('Network error'));
+		mockExecuteFunctions.continueOnFail.mockReturnValue(true);
+
+		const result = await executeNetworkOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+		expect(result).toEqual([{ json: { error: 'Network error' }, pairedItem: { item: 0 } }]);
+	});
+
+	it('should throw error when continueOnFail is false', async () => {
+		mockExecuteFunctions.getNodeParameter.mockReturnValue('getNetworkNodes');
+		mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(new Error('Network error'));
+		mockExecuteFunctions.continueOnFail.mockReturnValue(false);
+
+		await expect(executeNetworkOperations.call(mockExecuteFunctions, [{ json: {} }])).rejects.toThrow('Network error');
+	});
+});
+
+describe('Identity Resource', () => {
   let mockExecuteFunctions: any;
 
   beforeEach(() => {
@@ -254,7 +443,7 @@ describe('FlowExecution Resource', () => {
       getCredentials: jest.fn().mockResolvedValue({
         username: 'test-user',
         password: 'test-password',
-        baseUrl: 'http://localhost:10006/api/rest/v1',
+        baseUrl: 'https://localhost:10007/api/rest/v1',
       }),
       getInputData: jest.fn().mockReturnValue([{ json: {} }]),
       getNode: jest.fn().mockReturnValue({ name: 'Test Node' }),
@@ -266,813 +455,407 @@ describe('FlowExecution Resource', () => {
     };
   });
 
-  test('startFlow operation should start a new flow execution', async () => {
-    const mockResponse = {
-      runId: 'test-run-id-123',
-      flowClass: 'com.example.TestFlow',
-      status: 'RUNNING',
-    };
+  describe('getNodeIdentity operation', () => {
+    it('should successfully get node identity', async () => {
+      const mockResponse = { name: 'O=TestNode,L=London,C=GB', owningKey: 'test-key' };
+      mockExecuteFunctions.getNodeParameter.mockReturnValue('getNodeIdentity');
+      mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
 
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      switch (param) {
-        case 'operation': return 'startFlow';
-        case 'flowClassName': return 'com.example.TestFlow';
-        case 'flowArgs': return '{"param1": "value1"}';
-        default: return undefined;
-      }
+      const result = await executeIdentityOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+      expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
     });
 
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+    it('should handle errors in getNodeIdentity', async () => {
+      mockExecuteFunctions.getNodeParameter.mockReturnValue('getNodeIdentity');
+      mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(new Error('Network error'));
+      mockExecuteFunctions.continueOnFail.mockReturnValue(true);
 
-    const items = [{ json: {} }];
-    const result = await executeFlowExecutionOperations.call(mockExecuteFunctions, items);
+      const result = await executeIdentityOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'POST',
-      url: 'http://localhost:10006/api/rest/v1/flows/com.example.TestFlow',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-        'Content-Type': 'application/json',
-      },
-      body: { param1: 'value1' },
-      json: true,
+      expect(result).toEqual([{ json: { error: 'Network error' }, pairedItem: { item: 0 } }]);
     });
-
-    expect(result).toEqual([
-      { json: mockResponse, pairedItem: { item: 0 } }
-    ]);
   });
 
-  test('getCompletedFlows operation should list completed flows', async () => {
-    const mockResponse = {
-      flows: [
-        { runId: 'flow-1', status: 'COMPLETED' },
-        { runId: 'flow-2', status: 'COMPLETED' }
-      ],
-      total: 2
-    };
+  describe('getAllParties operation', () => {
+    it('should successfully get all parties', async () => {
+      const mockResponse = [{ name: 'Party1' }, { name: 'Party2' }];
+      mockExecuteFunctions.getNodeParameter.mockReturnValue('getAllParties');
+      mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
 
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      switch (param) {
-        case 'operation': return 'getCompletedFlows';
-        case 'limit': return 50;
-        case 'offset': return 0;
-        default: return undefined;
-      }
+      const result = await executeIdentityOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+      expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
     });
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
-
-    const items = [{ json: {} }];
-    const result = await executeFlowExecutionOperations.call(mockExecuteFunctions, items);
-
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'GET',
-      url: 'http://localhost:10006/api/rest/v1/flows/completed?limit=50&offset=0',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-        'Content-Type': 'application/json',
-      },
-      json: true,
-    });
-
-    expect(result).toEqual([
-      { json: mockResponse, pairedItem: { item: 0 } }
-    ]);
   });
 
-  test('getFlowStatus operation should get flow status', async () => {
-    const mockResponse = {
-      runId: 'test-run-id',
-      status: 'RUNNING',
-      progress: 0.5
-    };
+  describe('getPartyByName operation', () => {
+    it('should successfully get party by name', async () => {
+      const mockResponse = { name: 'TestParty', owningKey: 'test-key' };
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('getPartyByName')
+        .mockReturnValueOnce('TestParty');
+      mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
 
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      switch (param) {
-        case 'operation': return 'getFlowStatus';
-        case 'runId': return 'test-run-id';
-        default: return undefined;
-      }
+      const result = await executeIdentityOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+      expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
     });
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
-
-    const items = [{ json: {} }];
-    const result = await executeFlowExecutionOperations.call(mockExecuteFunctions, items);
-
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'GET',
-      url: 'http://localhost:10006/api/rest/v1/flows/test-run-id',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-        'Content-Type': 'application/json',
-      },
-      json: true,
-    });
-
-    expect(result).toEqual([
-      { json: mockResponse, pairedItem: { item: 0 } }
-    ]);
   });
 
-  test('killFlow operation should terminate a running flow', async () => {
-    const mockResponse = {
-      runId: 'test-run-id',
-      status: 'KILLED',
-      message: 'Flow terminated successfully'
-    };
+  describe('registerParty operation', () => {
+    it('should successfully register party', async () => {
+      const partyInfo = { name: 'NewParty', address: 'localhost:10008' };
+      const mockResponse = { success: true, partyId: 'party-123' };
+      mockExecuteFunctions.getNodeParameter
+        .mockReturnValueOnce('registerParty')
+        .mockReturnValueOnce(partyInfo);
+      mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
 
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      switch (param) {
-        case 'operation': return 'killFlow';
-        case 'runId': return 'test-run-id';
-        default: return undefined;
-      }
+      const result = await executeIdentityOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+      expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
     });
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
-
-    const items = [{ json: {} }];
-    const result = await executeFlowExecutionOperations.call(mockExecuteFunctions, items);
-
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'DELETE',
-      url: 'http://localhost:10006/api/rest/v1/flows/test-run-id',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-        'Content-Type': 'application/json',
-      },
-      json: true,
-    });
-
-    expect(result).toEqual([
-      { json: mockResponse, pairedItem: { item: 0 } }
-    ]);
   });
 
-  test('should handle invalid JSON in flow arguments', async () => {
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      switch (param) {
-        case 'operation': return 'startFlow';
-        case 'flowClassName': return 'com.example.TestFlow';
-        case 'flowArgs': return 'invalid json';
-        default: return undefined;
-      }
+  describe('getPublicKeys operation', () => {
+    it('should successfully get public keys', async () => {
+      const mockResponse = { keys: ['key1', 'key2'] };
+      mockExecuteFunctions.getNodeParameter.mockReturnValue('getPublicKeys');
+      mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+
+      const result = await executeIdentityOperations.call(mockExecuteFunctions, [{ json: {} }]);
+
+      expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
     });
-
-    const items = [{ json: {} }];
-
-    await expect(executeFlowExecutionOperations.call(mockExecuteFunctions, items))
-      .rejects.toThrow('Invalid JSON in flow arguments');
-  });
-
-  test('should handle API errors', async () => {
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      switch (param) {
-        case 'operation': return 'getFlowStatus';
-        case 'runId': return 'non-existent-run-id';
-        default: return undefined;
-      }
-    });
-
-    const apiError = new Error('Flow not found');
-    (apiError as any).httpCode = 404;
-    mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(apiError);
-
-    const items = [{ json: {} }];
-
-    await expect(executeFlowExecutionOperations.call(mockExecuteFunctions, items))
-      .rejects.toThrow('Flow not found');
   });
 });
 
-describe('TokenManagement Resource', () => {
-  let mockExecuteFunctions: any;
+describe('Transaction Resource', () => {
+	let mockExecuteFunctions: any;
 
-  beforeEach(() => {
-    mockExecuteFunctions = {
-      getNodeParameter: jest.fn(),
-      getCredentials: jest.fn().mockResolvedValue({
-        username: 'test-user',
-        password: 'test-password',
-        baseUrl: 'http://localhost:10006/api/rest/v1',
-      }),
-      getInputData: jest.fn().mockReturnValue([{ json: {} }]),
-      getNode: jest.fn().mockReturnValue({ name: 'Test Node' }),
-      continueOnFail: jest.fn().mockReturnValue(false),
-      helpers: {
-        httpRequest: jest.fn(),
-        requestWithAuthentication: jest.fn(),
-      },
-    };
-  });
+	beforeEach(() => {
+		mockExecuteFunctions = {
+			getNodeParameter: jest.fn(),
+			getCredentials: jest.fn().mockResolvedValue({
+				username: 'test-user',
+				password: 'test-pass',
+				baseUrl: 'https://localhost:10007/api/rest/v1',
+			}),
+			getInputData: jest.fn().mockReturnValue([{ json: {} }]),
+			getNode: jest.fn().mockReturnValue({ name: 'Test Node' }),
+			continueOnFail: jest.fn().mockReturnValue(false),
+			helpers: {
+				httpRequest: jest.fn(),
+			},
+		};
+	});
 
-  test('issueTokens operation should work correctly', async () => {
-    mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-      switch (paramName) {
-        case 'operation': return 'issueTokens';
-        case 'tokenType': return 'USD';
-        case 'amount': return 1000;
-        case 'holder': return 'O=PartyA,L=London,C=GB';
-        case 'notary': return 'O=Notary,L=London,C=GB';
-        default: return undefined;
-      }
-    });
+	describe('getTransaction', () => {
+		it('should get transaction by ID successfully', async () => {
+			const mockResponse = { id: 'tx123', status: 'VERIFIED' };
+			mockExecuteFunctions.getNodeParameter.mockReturnValueOnce('getTransaction').mockReturnValueOnce('tx123');
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValueOnce(mockResponse);
 
-    const mockResponse = {
-      transactionId: 'tx-123',
-      tokenType: 'USD',
-      amount: 1000,
-      status: 'COMMITTED',
-    };
+			const result = await executeTransactionOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'GET',
+				url: 'https://localhost:10007/api/rest/v1/transactions/tx123',
+				headers: { 'Content-Type': 'application/json' },
+				auth: { username: 'test-user', password: 'test-pass' },
+				json: true,
+				rejectUnauthorized: false,
+			});
+		});
 
-    const items = [{ json: {} }];
-    const result = await executeTokenManagementOperations.call(mockExecuteFunctions, items);
+		it('should handle getTransaction error', async () => {
+			mockExecuteFunctions.getNodeParameter.mockReturnValueOnce('getTransaction').mockReturnValueOnce('tx123');
+			mockExecuteFunctions.helpers.httpRequest.mockRejectedValueOnce(new Error('Transaction not found'));
+			mockExecuteFunctions.continueOnFail.mockReturnValueOnce(true);
 
-    expect(result).toEqual([
-      {
-        json: mockResponse,
-        pairedItem: { item: 0 },
-      },
-    ]);
+			const result = await executeTransactionOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-        'Content-Type': 'application/json',
-      },
-      json: true,
-      method: 'POST',
-      url: 'http://localhost:10006/api/rest/v1/tokens/issue',
-      body: {
-        tokenType: 'USD',
-        amount: 1000,
-        holder: 'O=PartyA,L=London,C=GB',
-        notary: 'O=Notary,L=London,C=GB',
-      },
-    });
-  });
+			expect(result).toEqual([{ json: { error: 'Transaction not found' }, pairedItem: { item: 0 } }]);
+		});
+	});
 
-  test('moveTokens operation should work correctly', async () => {
-    mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-      switch (paramName) {
-        case 'operation': return 'moveTokens';
-        case 'tokenType': return 'USD';
-        case 'amount': return 500;
-        case 'holder': return 'O=PartyA,L=London,C=GB';
-        case 'newHolder': return 'O=PartyB,L=London,C=GB';
-        default: return undefined;
-      }
-    });
+	describe('getAllTransactions', () => {
+		it('should get all transactions successfully', async () => {
+			const mockResponse = { transactions: [], totalCount: 0 };
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('getAllTransactions')
+				.mockReturnValueOnce(10)
+				.mockReturnValueOnce(1);
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValueOnce(mockResponse);
 
-    const mockResponse = {
-      transactionId: 'tx-456',
-      transferAmount: 500,
-      status: 'COMMITTED',
-    };
+			const result = await executeTransactionOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+		});
+	});
 
-    const items = [{ json: {} }];
-    const result = await executeTokenManagementOperations.call(mockExecuteFunctions, items);
+	describe('verifyTransaction', () => {
+		it('should verify transaction successfully', async () => {
+			const mockTransaction = { id: 'tx123', data: 'test' };
+			const mockResponse = { isValid: true };
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('verifyTransaction')
+				.mockReturnValueOnce(mockTransaction);
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValueOnce(mockResponse);
 
-    expect(result).toEqual([
-      {
-        json: mockResponse,
-        pairedItem: { item: 0 },
-      },
-    ]);
+			const result = await executeTransactionOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-        'Content-Type': 'application/json',
-      },
-      json: true,
-      method: 'POST',
-      url: 'http://localhost:10006/api/rest/v1/tokens/move',
-      body: {
-        tokenType: 'USD',
-        amount: 500,
-        holder: 'O=PartyA,L=London,C=GB',
-        newHolder: 'O=PartyB,L=London,C=GB',
-      },
-    });
-  });
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+		});
+	});
 
-  test('getTokenBalances operation should work correctly', async () => {
-    mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-      switch (paramName) {
-        case 'operation': return 'getTokenBalances';
-        case 'tokenType': return 'USD';
-        case 'holder': return 'O=PartyA,L=London,C=GB';
-        default: return undefined;
-      }
-    });
+	describe('getTransactionOutputs', () => {
+		it('should get transaction outputs successfully', async () => {
+			const mockResponse = { outputs: [] };
+			mockExecuteFunctions.getNodeParameter.mockReturnValueOnce('getTransactionOutputs').mockReturnValueOnce('tx123');
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValueOnce(mockResponse);
 
-    const mockResponse = {
-      balances: [
-        { tokenType: 'USD', amount: 1500, holder: 'O=PartyA,L=London,C=GB' },
-      ],
-    };
+			const result = await executeTransactionOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockResponse);
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+		});
+	});
 
-    const items = [{ json: {} }];
-    const result = await executeTokenManagementOperations.call(mockExecuteFunctions, items);
+	describe('getTransactionInputs', () => {
+		it('should get transaction inputs successfully', async () => {
+			const mockResponse = { inputs: [] };
+			mockExecuteFunctions.getNodeParameter.mockReturnValueOnce('getTransactionInputs').mockReturnValueOnce('tx123');
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValueOnce(mockResponse);
 
-    expect(result).toEqual([
-      {
-        json: mockResponse,
-        pairedItem: { item: 0 },
-      },
-    ]);
+			const result = await executeTransactionOperations.call(mockExecuteFunctions, [{ json: {} }]);
 
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-        'Content-Type': 'application/json',
-      },
-      json: true,
-      method: 'GET',
-      url: expect.stringContaining('/tokens/balances?tokenType=USD&holder=O%3DPartyA%2CL%3DLondon%2CC%3DGB'),
-    });
-  });
-
-  test('error handling should work correctly', async () => {
-    mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-      switch (paramName) {
-        case 'operation': return 'issueTokens';
-        default: return undefined;
-      }
-    });
-
-    const mockError = new Error('API Error');
-    mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(mockError);
-
-    const items = [{ json: {} }];
-
-    await expect(
-      executeTokenManagementOperations.call(mockExecuteFunctions, items)
-    ).rejects.toThrow('API Error');
-  });
-
-  test('continueOnFail should handle errors gracefully', async () => {
-    mockExecuteFunctions.getNodeParameter.mockImplementation((paramName: string) => {
-      switch (paramName) {
-        case 'operation': return 'issueTokens';
-        default: return undefined;
-      }
-    });
-
-    mockExecuteFunctions.continueOnFail.mockReturnValue(true);
-    const mockError = new Error('API Error');
-    mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(mockError);
-
-    const items = [{ json: {} }];
-    const result = await executeTokenManagementOperations.call(mockExecuteFunctions, items);
-
-    expect(result).toEqual([
-      {
-        json: { error: 'API Error' },
-        pairedItem: { item: 0 },
-      },
-    ]);
-  });
+			expect(result).toEqual([{ json: mockResponse, pairedItem: { item: 0 } }]);
+		});
+	});
 });
 
-describe('NetworkMap Resource', () => {
-  let mockExecuteFunctions: any;
-
-  beforeEach(() => {
-    mockExecuteFunctions = {
-      getNodeParameter: jest.fn(),
-      getCredentials: jest.fn().mockResolvedValue({
-        username: 'test-user',
-        password: 'test-password',
-        baseUrl: 'http://localhost:10006/api/rest/v1',
-      }),
-      getInputData: jest.fn().mockReturnValue([{ json: {} }]),
-      getNode: jest.fn().mockReturnValue({ name: 'Test Node' }),
-      continueOnFail: jest.fn().mockReturnValue(false),
-      helpers: {
-        httpRequest: jest.fn(),
-        requestWithAuthentication: jest.fn(),
-      },
-    };
-  });
-
-  test('should get network nodes successfully', async () => {
-    const mockNodes = [
-      {
-        nodeInfo: {
-          addresses: ['localhost:10005'],
-          legalIdentities: [{ name: 'O=PartyA,L=London,C=GB' }],
-        },
-      },
-    ];
-
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      if (param === 'operation') return 'getNetworkNodes';
-      return null;
-    });
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockNodes);
-
-    const items = [{ json: {} }];
-    const result = await executeNetworkMapOperations.call(mockExecuteFunctions, items);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json).toEqual(mockNodes);
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'GET',
-      url: 'http://localhost:10006/api/rest/v1/network/nodes',
-      headers: {
-        'Authorization': expect.stringMatching(/^Basic /),
-        'Content-Type': 'application/json',
-      },
-      json: true,
-    });
-  });
-
-  test('should get specific network node successfully', async () => {
-    const mockNode = {
-      nodeInfo: {
-        addresses: ['localhost:10005'],
-        legalIdentities: [{ name: 'O=PartyA,L=London,C=GB' }],
-      },
-    };
-
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      if (param === 'operation') return 'getNetworkNode';
-      if (param === 'party') return 'O=PartyA,L=London,C=GB';
-      return null;
-    });
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockNode);
-
-    const items = [{ json: {} }];
-    const result = await executeNetworkMapOperations.call(mockExecuteFunctions, items);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json).toEqual(mockNode);
-  });
-
-  test('should get network parties successfully', async () => {
-    const mockParties = [
-      { name: 'O=PartyA,L=London,C=GB' },
-      { name: 'O=PartyB,L=New York,C=US' },
-    ];
-
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      if (param === 'operation') return 'getNetworkParties';
-      return null;
-    });
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockParties);
-
-    const items = [{ json: {} }];
-    const result = await executeNetworkMapOperations.call(mockExecuteFunctions, items);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json).toEqual(mockParties);
-  });
-
-  test('should get current node info successfully', async () => {
-    const mockNodeInfo = {
-      addresses: ['localhost:10005'],
-      legalIdentities: [{ name: 'O=MyNode,L=London,C=GB' }],
-    };
-
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      if (param === 'operation') return 'getNodeInfo';
-      return null;
-    });
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockNodeInfo);
-
-    const items = [{ json: {} }];
-    const result = await executeNetworkMapOperations.call(mockExecuteFunctions, items);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json).toEqual(mockNodeInfo);
-  });
-
-  test('should get notaries successfully', async () => {
-    const mockNotaries = [
-      {
-        identity: { name: 'O=Notary,L=London,C=GB' },
-        validating: false,
-      },
-    ];
-
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      if (param === 'operation') return 'getNotaries';
-      return null;
-    });
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockNotaries);
-
-    const items = [{ json: {} }];
-    const result = await executeNetworkMapOperations.call(mockExecuteFunctions, items);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json).toEqual(mockNotaries);
-  });
-
-  test('should lookup party by name successfully', async () => {
-    const mockParty = {
-      name: 'O=PartyA,L=London,C=GB',
-      owningKey: 'test-key',
-    };
-
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      if (param === 'operation') return 'lookupPartyByName';
-      if (param === 'name') return 'O=PartyA,L=London,C=GB';
-      return null;
-    });
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockParty);
-
-    const items = [{ json: {} }];
-    const result = await executeNetworkMapOperations.call(mockExecuteFunctions, items);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json).toEqual(mockParty);
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'POST',
-      url: 'http://localhost:10006/api/rest/v1/network/parties/lookup',
-      headers: {
-        'Authorization': expect.stringMatching(/^Basic /),
-        'Content-Type': 'application/json',
-      },
-      body: {
-        name: 'O=PartyA,L=London,C=GB',
-      },
-      json: true,
-    });
-  });
-
-  test('should handle API errors', async () => {
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      if (param === 'operation') return 'getNetworkNodes';
-      return null;
-    });
-
-    const apiError = new Error('Network error');
-    mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(apiError);
-
-    const items = [{ json: {} }];
-
-    await expect(executeNetworkMapOperations.call(mockExecuteFunctions, items)).rejects.toThrow('Network error');
-  });
-
-  test('should continue on fail when configured', async () => {
-    mockExecuteFunctions.continueOnFail.mockReturnValue(true);
-    mockExecuteFunctions.getNodeParameter.mockImplementation((param: string) => {
-      if (param === 'operation') return 'getNetworkNodes';
-      return null;
-    });
-
-    const apiError = new Error('Network error');
-    mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(apiError);
-
-    const items = [{ json: {} }];
-    const result = await executeNetworkMapOperations.call(mockExecuteFunctions, items);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json).toEqual({ error: 'Network error' });
-  });
-});
-
-describe('Attachments Resource', () => {
-  let mockExecuteFunctions: any;
-
-  beforeEach(() => {
-    mockExecuteFunctions = {
-      getNodeParameter: jest.fn(),
-      getCredentials: jest.fn().mockResolvedValue({
-        username: 'test-user',
-        password: 'test-password',
-        baseUrl: 'http://localhost:10006/api/rest/v1',
-      }),
-      getInputData: jest.fn().mockReturnValue([{ json: {} }]),
-      getNode: jest.fn().mockReturnValue({ name: 'Test Node' }),
-      continueOnFail: jest.fn().mockReturnValue(false),
-      helpers: {
-        httpRequest: jest.fn(),
-        requestWithAuthentication: jest.fn(),
-      },
-    };
-  });
-
-  it('should upload attachment successfully', async () => {
-    mockExecuteFunctions.getNodeParameter
-      .mockReturnValueOnce('uploadAttachment')
-      .mockReturnValueOnce('/path/to/file.jar')
-      .mockReturnValueOnce('contract.jar');
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue({
-      attachmentId: 'att-123',
-      filename: 'contract.jar',
-      size: 1024,
-      uploadedAt: '2024-01-01T00:00:00Z',
-    });
-
-    const result = await executeAttachmentsOperations.call(
-      mockExecuteFunctions,
-      [{ json: {} }],
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json.attachmentId).toBe('att-123');
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'POST',
-      url: 'http://localhost:10006/api/rest/v1/attachments',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-        'Content-Type': 'multipart/form-data',
-      },
-      formData: {
-        file: '/path/to/file.jar',
-        filename: 'contract.jar',
-      },
-      json: true,
-    });
-  });
-
-  it('should get attachment successfully', async () => {
-    mockExecuteFunctions.getNodeParameter
-      .mockReturnValueOnce('getAttachment')
-      .mockReturnValueOnce('att-123');
-
-    const mockFileBuffer = Buffer.from('mock file content');
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue(mockFileBuffer);
-
-    const result = await executeAttachmentsOperations.call(
-      mockExecuteFunctions,
-      [{ json: {} }],
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json).toEqual(mockFileBuffer);
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'GET',
-      url: 'http://localhost:10006/api/rest/v1/attachments/att-123',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-      },
-      encoding: null,
-    });
-  });
-
-  it('should list attachments successfully', async () => {
-    mockExecuteFunctions.getNodeParameter.mockReturnValueOnce('listAttachments');
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue({
-      attachments: [
-        { attachmentId: 'att-123', filename: 'contract1.jar', size: 1024 },
-        { attachmentId: 'att-456', filename: 'contract2.jar', size: 2048 },
-      ],
-    });
-
-    const result = await executeAttachmentsOperations.call(
-      mockExecuteFunctions,
-      [{ json: {} }],
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json.attachments).toHaveLength(2);
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'GET',
-      url: 'http://localhost:10006/api/rest/v1/attachments',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-      },
-      json: true,
-    });
-  });
-
-  it('should delete attachment successfully', async () => {
-    mockExecuteFunctions.getNodeParameter
-      .mockReturnValueOnce('deleteAttachment')
-      .mockReturnValueOnce('att-123');
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue({
-      message: 'Attachment deleted successfully',
-      attachmentId: 'att-123',
-    });
-
-    const result = await executeAttachmentsOperations.call(
-      mockExecuteFunctions,
-      [{ json: {} }],
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json.message).toBe('Attachment deleted successfully');
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'DELETE',
-      url: 'http://localhost:10006/api/rest/v1/attachments/att-123',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-      },
-      json: true,
-    });
-  });
-
-  it('should get attachment metadata successfully', async () => {
-    mockExecuteFunctions.getNodeParameter
-      .mockReturnValueOnce('getAttachmentMetadata')
-      .mockReturnValueOnce('att-123');
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue({
-      attachmentId: 'att-123',
-      filename: 'contract.jar',
-      size: 1024,
-      checksum: 'sha256-abcd1234',
-      uploadedAt: '2024-01-01T00:00:00Z',
-      contentType: 'application/java-archive',
-    });
-
-    const result = await executeAttachmentsOperations.call(
-      mockExecuteFunctions,
-      [{ json: {} }],
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json.attachmentId).toBe('att-123');
-    expect(result[0].json.checksum).toBe('sha256-abcd1234');
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'GET',
-      url: 'http://localhost:10006/api/rest/v1/attachments/att-123/metadata',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-      },
-      json: true,
-    });
-  });
-
-  it('should verify attachment successfully', async () => {
-    mockExecuteFunctions.getNodeParameter
-      .mockReturnValueOnce('verifyAttachment')
-      .mockReturnValueOnce('att-123');
-
-    mockExecuteFunctions.helpers.httpRequest.mockResolvedValue({
-      attachmentId: 'att-123',
-      verified: true,
-      checksum: 'sha256-abcd1234',
-      message: 'Attachment integrity verified',
-    });
-
-    const result = await executeAttachmentsOperations.call(
-      mockExecuteFunctions,
-      [{ json: {} }],
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json.verified).toBe(true);
-    expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
-      method: 'POST',
-      url: 'http://localhost:10006/api/rest/v1/attachments/verify',
-      headers: {
-        'Authorization': expect.stringContaining('Basic '),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        attachmentId: 'att-123',
-      }),
-      json: true,
-    });
-  });
-
-  it('should handle API errors gracefully', async () => {
-    mockExecuteFunctions.getNodeParameter
-      .mockReturnValueOnce('getAttachment')
-      .mockReturnValueOnce('invalid-id');
-
-    mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(
-      new Error('Attachment not found'),
-    );
-    mockExecuteFunctions.continueOnFail.mockReturnValue(true);
-
-    const result = await executeAttachmentsOperations.call(
-      mockExecuteFunctions,
-      [{ json: {} }],
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0].json.error).toBe('Attachment not found');
-  });
-
-  it('should throw error for unknown operation', async () => {
-    mockExecuteFunctions.getNodeParameter.mockReturnValueOnce('unknownOperation');
-
-    await expect(
-      executeAttachmentsOperations.call(mockExecuteFunctions, [{ json: {} }]),
-    ).rejects.toThrow('Unknown operation: unknownOperation');
-  });
+describe('Attachment Resource', () => {
+	let mockExecuteFunctions: any;
+
+	beforeEach(() => {
+		mockExecuteFunctions = {
+			getNodeParameter: jest.fn(),
+			getCredentials: jest.fn().mockResolvedValue({
+				username: 'test-user',
+				password: 'test-pass',
+				baseUrl: 'https://localhost:10007',
+			}),
+			getInputData: jest.fn().mockReturnValue([{ json: {} }]),
+			getNode: jest.fn().mockReturnValue({ name: 'Test Node' }),
+			continueOnFail: jest.fn().mockReturnValue(false),
+			helpers: {
+				httpRequest: jest.fn(),
+			},
+		};
+	});
+
+	describe('uploadAttachment', () => {
+		it('should upload attachment successfully', async () => {
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('uploadAttachment')
+				.mockReturnValueOnce('test-attachment-data');
+
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue({
+				id: 'attachment-123',
+				status: 'uploaded',
+			});
+
+			const result = await executeAttachmentOperations.call(
+				mockExecuteFunctions,
+				[{ json: {} }],
+			);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'POST',
+				url: 'https://localhost:10007/api/rest/v1/attachments',
+				headers: {
+					'Authorization': expect.stringMatching(/^Basic /),
+					'Content-Type': 'application/json',
+				},
+				body: {
+					attachmentData: 'test-attachment-data',
+				},
+				json: true,
+			});
+
+			expect(result).toEqual([
+				{
+					json: { id: 'attachment-123', status: 'uploaded' },
+					pairedItem: { item: 0 },
+				},
+			]);
+		});
+
+		it('should handle upload attachment error', async () => {
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('uploadAttachment')
+				.mockReturnValueOnce('test-attachment-data');
+
+			mockExecuteFunctions.helpers.httpRequest.mockRejectedValue(new Error('Upload failed'));
+			mockExecuteFunctions.continueOnFail.mockReturnValue(true);
+
+			const result = await executeAttachmentOperations.call(
+				mockExecuteFunctions,
+				[{ json: {} }],
+			);
+
+			expect(result).toEqual([
+				{
+					json: { error: 'Upload failed' },
+					pairedItem: { item: 0 },
+				},
+			]);
+		});
+	});
+
+	describe('getAttachment', () => {
+		it('should get attachment successfully', async () => {
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('getAttachment')
+				.mockReturnValueOnce('attachment-123');
+
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue({
+				id: 'attachment-123',
+				data: 'attachment-content',
+			});
+
+			const result = await executeAttachmentOperations.call(
+				mockExecuteFunctions,
+				[{ json: {} }],
+			);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'GET',
+				url: 'https://localhost:10007/api/rest/v1/attachments/attachment-123',
+				headers: {
+					'Authorization': expect.stringMatching(/^Basic /),
+				},
+				json: true,
+			});
+
+			expect(result).toEqual([
+				{
+					json: { id: 'attachment-123', data: 'attachment-content' },
+					pairedItem: { item: 0 },
+				},
+			]);
+		});
+	});
+
+	describe('getAllAttachments', () => {
+		it('should get all attachments successfully', async () => {
+			mockExecuteFunctions.getNodeParameter.mockReturnValueOnce('getAllAttachments');
+
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue([
+				{ id: 'attachment-1', name: 'attachment1.jar' },
+				{ id: 'attachment-2', name: 'attachment2.jar' },
+			]);
+
+			const result = await executeAttachmentOperations.call(
+				mockExecuteFunctions,
+				[{ json: {} }],
+			);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'GET',
+				url: 'https://localhost:10007/api/rest/v1/attachments',
+				headers: {
+					'Authorization': expect.stringMatching(/^Basic /),
+				},
+				json: true,
+			});
+
+			expect(result).toEqual([
+				{
+					json: [
+						{ id: 'attachment-1', name: 'attachment1.jar' },
+						{ id: 'attachment-2', name: 'attachment2.jar' },
+					],
+					pairedItem: { item: 0 },
+				},
+			]);
+		});
+	});
+
+	describe('deleteAttachment', () => {
+		it('should delete attachment successfully', async () => {
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('deleteAttachment')
+				.mockReturnValueOnce('attachment-123');
+
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue({
+				message: 'Attachment deleted successfully',
+			});
+
+			const result = await executeAttachmentOperations.call(
+				mockExecuteFunctions,
+				[{ json: {} }],
+			);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'DELETE',
+				url: 'https://localhost:10007/api/rest/v1/attachments/attachment-123',
+				headers: {
+					'Authorization': expect.stringMatching(/^Basic /),
+				},
+				json: true,
+			});
+
+			expect(result).toEqual([
+				{
+					json: { message: 'Attachment deleted successfully' },
+					pairedItem: { item: 0 },
+				},
+			]);
+		});
+	});
+
+	describe('getAttachmentMetadata', () => {
+		it('should get attachment metadata successfully', async () => {
+			mockExecuteFunctions.getNodeParameter
+				.mockReturnValueOnce('getAttachmentMetadata')
+				.mockReturnValueOnce('attachment-123');
+
+			mockExecuteFunctions.helpers.httpRequest.mockResolvedValue({
+				id: 'attachment-123',
+				filename: 'contract.jar',
+				size: 1024,
+				uploadDate: '2023-01-01T00:00:00Z',
+			});
+
+			const result = await executeAttachmentOperations.call(
+				mockExecuteFunctions,
+				[{ json: {} }],
+			);
+
+			expect(mockExecuteFunctions.helpers.httpRequest).toHaveBeenCalledWith({
+				method: 'GET',
+				url: 'https://localhost:10007/api/rest/v1/attachments/attachment-123/metadata',
+				headers: {
+					'Authorization': expect.stringMatching(/^Basic /),
+				},
+				json: true,
+			});
+
+			expect(result).toEqual([
+				{
+					json: {
+						id: 'attachment-123',
+						filename: 'contract.jar',
+						size: 1024,
+						uploadDate: '2023-01-01T00:00:00Z',
+					},
+					pairedItem: { item: 0 },
+				},
+			]);
+		});
+	});
 });
 });
