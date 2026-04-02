@@ -1,19 +1,15 @@
-import {
-	ICredentialType,
-	INodeProperties,
-} from 'n8n-workflow';
+import { ICredentialType, INodeProperties } from 'n8n-workflow';
 
 export class R3CordaApi implements ICredentialType {
 	name = 'r3CordaApi';
 	displayName = 'R3 Corda API';
-	documentationUrl = 'https://docs.r3.com/';
 	properties: INodeProperties[] = [
 		{
-			displayName: 'API Base URL',
+			displayName: 'Base URL',
 			name: 'baseUrl',
 			type: 'string',
-			default: 'http://localhost:10006/api/rest/v1',
-			description: 'The base URL of the R3 Corda RPC API endpoint',
+			default: 'https://localhost:10007/api/rest/v1',
+			description: 'Base URL for the R3 Corda REST API',
 			required: true,
 		},
 		{
@@ -21,7 +17,7 @@ export class R3CordaApi implements ICredentialType {
 			name: 'username',
 			type: 'string',
 			default: '',
-			description: 'RPC username configured in the Corda node',
+			description: 'Username for HTTP Basic Authentication',
 			required: true,
 		},
 		{
@@ -32,7 +28,7 @@ export class R3CordaApi implements ICredentialType {
 				password: true,
 			},
 			default: '',
-			description: 'RPC password for the configured user',
+			description: 'Password for HTTP Basic Authentication',
 			required: true,
 		},
 	];
