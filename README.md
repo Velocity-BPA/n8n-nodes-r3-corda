@@ -8,25 +8,25 @@
 >
 > For licensing information, visit https://velobpa.com/licensing or contact licensing@velobpa.com.
 
-This n8n community node provides seamless integration with R3 Corda distributed ledger technology, offering 5 comprehensive resources for enterprise blockchain operations including vault queries, flow execution, token management, network mapping, and attachment handling.
+This n8n community node provides seamless integration with R3 Corda distributed ledger platform, offering 6 comprehensive resources for blockchain operations. Enable automated workflows for vault queries, flow execution, network management, identity operations, transaction handling, and attachment processing within your Corda network ecosystem.
 
 ![n8n Community Node](https://img.shields.io/badge/n8n-Community%20Node-blue)
 ![License](https://img.shields.io/badge/license-BSL--1.1-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)
-![R3 Corda](https://img.shields.io/badge/R3%20Corda-4.x%2B-green)
-![Blockchain](https://img.shields.io/badge/Blockchain-DLT-purple)
-![Enterprise](https://img.shields.io/badge/Enterprise-Ready-orange)
+![Corda](https://img.shields.io/badge/R3%20Corda-Enterprise-green)
+![DLT](https://img.shields.io/badge/DLT-Blockchain-orange)
+![Enterprise](https://img.shields.io/badge/Enterprise-Ready-purple)
 
 ## Features
 
-- **Vault Queries** - Execute complex queries against Corda vault state data with flexible filtering and pagination
-- **Flow Execution** - Initiate and monitor Corda flows for business logic automation and state transitions
-- **Token Management** - Create, transfer, and manage tokens within Corda networks with full transaction support
-- **Network Discovery** - Query network topology, node information, and peer connectivity for monitoring and administration
-- **Attachment Handling** - Upload, retrieve, and manage contract attachments and supporting documents
-- **State Monitoring** - Real-time tracking of transaction states and flow progress with detailed status information
-- **Error Recovery** - Comprehensive error handling with automatic retry mechanisms for network resilience
-- **Security Integration** - Full support for Corda's cryptographic security model and identity management
+- **Comprehensive Vault Operations** - Query and manage states stored in your Corda vault with advanced filtering capabilities
+- **Flow Execution Management** - Initiate, track, and manage Corda flows with full parameter support and status monitoring
+- **Network Discovery** - Retrieve network map information, node details, and peer connectivity status
+- **Identity Management** - Handle party lookups, certificate operations, and network identity verification
+- **Transaction Processing** - Create, sign, verify, and query transactions across the Corda network
+- **Attachment Handling** - Upload, download, and manage contract JARs and file attachments
+- **Enterprise Security** - Full support for Corda's security model with proper authentication and authorization
+- **Real-time Monitoring** - Track flow progress and transaction states with comprehensive error handling
 
 ## Installation
 
@@ -61,123 +61,120 @@ n8n start
 
 | Field | Description | Required |
 |-------|-------------|----------|
-| API Key | Corda node RPC API key for authentication | Yes |
-| Node Host | Hostname or IP address of the Corda node | Yes |
-| RPC Port | RPC port number (typically 10006) | Yes |
-| Username | RPC username for node access | Yes |
-| Password | RPC password for node access | Yes |
-| SSL Enabled | Enable SSL/TLS for secure connections | No |
-| Connection Timeout | Timeout in milliseconds for RPC connections | No |
+| Node URL | Base URL of your Corda node RPC endpoint | Yes |
+| API Key | Authentication key for node access | Yes |
+| Username | RPC username for node authentication | Yes |
+| Password | RPC password for node authentication | Yes |
+| SSL Verify | Enable/disable SSL certificate verification | No |
 
 ## Resources & Operations
 
-### 1. Vault Queries
+### 1. Vault Query
 
 | Operation | Description |
 |-----------|-------------|
-| Query States | Retrieve vault states with custom criteria and filters |
-| Query Transactions | Search transaction history with date ranges and participants |
-| Get State by Ref | Fetch specific state using state reference |
-| Query Contracts | Find states by contract type and constraints |
-| Count States | Get state count matching query criteria |
-| Track States | Monitor state changes and updates |
+| Query States | Query vault for states with filtering options |
+| Query by Criteria | Advanced state queries using custom criteria |
+| Get State by ID | Retrieve specific state by linear or state ID |
+| Query Consumed States | Search for consumed/historical states |
+| Get Page Results | Paginated vault query results |
 
-### 2. Flow Execution
+### 2. Flow
 
 | Operation | Description |
 |-----------|-------------|
 | Start Flow | Initiate a new Corda flow with parameters |
 | Get Flow Status | Check the status and progress of running flows |
 | List Flows | Retrieve all available flows on the node |
-| Get Flow Result | Obtain the result of completed flows |
-| Cancel Flow | Terminate a running flow execution |
-| Monitor Flow | Track flow execution with real-time updates |
+| Get Flow Result | Fetch completed flow results and outputs |
+| Cancel Flow | Terminate running flows |
 
-### 3. Token Management
-
-| Operation | Description |
-|-----------|-------------|
-| Create Tokens | Issue new tokens with specified attributes |
-| Transfer Tokens | Move tokens between parties |
-| Redeem Tokens | Burn or redeem existing tokens |
-| Query Token Balance | Check token balances for parties |
-| Get Token Info | Retrieve token metadata and properties |
-| List Token Types | Display available token types on the network |
-
-### 4. Network Map
+### 3. Network
 
 | Operation | Description |
 |-----------|-------------|
-| Get Network Map | Retrieve complete network topology |
-| Query Nodes | Search for nodes by criteria |
+| Get Network Map | Retrieve current network topology and nodes |
 | Get Node Info | Fetch detailed information about specific nodes |
-| Check Node Status | Verify node connectivity and health |
-| Get Notaries | List all notary services on the network |
-| Query Services | Discover available network services |
+| List Peers | Get all known peer nodes and their status |
+| Get Network Parameters | Retrieve network-wide configuration parameters |
+| Check Connectivity | Test connectivity to other network nodes |
 
-### 5. Attachments
+### 4. Identity
 
 | Operation | Description |
 |-----------|-------------|
-| Upload Attachment | Add new attachments to the node |
+| Get Node Identity | Retrieve the identity of the current node |
+| Lookup Party | Find party information by name or key |
+| List Known Parties | Get all parties known to this node |
+| Verify Certificate | Validate party certificates and signatures |
+| Get Well Known Parties | Retrieve network-wide known parties |
+
+### 5. Transaction
+
+| Operation | Description |
+|-----------|-------------|
+| Get Transaction | Retrieve transaction details by ID |
+| Create Transaction | Build new transactions with inputs and outputs |
+| Sign Transaction | Apply digital signatures to transactions |
+| Verify Transaction | Validate transaction signatures and structure |
+| Query Transactions | Search transactions with filtering criteria |
+
+### 6. Attachment
+
+| Operation | Description |
+|-----------|-------------|
+| Upload Attachment | Upload files or JARs as Corda attachments |
 | Download Attachment | Retrieve attachment content by hash |
-| List Attachments | Get all attachments stored on the node |
-| Query Attachment Info | Fetch attachment metadata and properties |
-| Verify Attachment | Validate attachment integrity and signatures |
-| Delete Attachment | Remove attachments from node storage |
+| List Attachments | Get all attachments available on the node |
+| Get Attachment Info | Fetch metadata for specific attachments |
+| Verify Attachment | Check attachment integrity and signatures |
 
 ## Usage Examples
 
 ```javascript
-// Query vault states for IOUState contracts
+// Query vault for cash states
 {
-  "resource": "vaultQueries",
-  "operation": "queryStates",
-  "contractType": "com.example.IOUState",
+  "resource": "VaultQuery",
+  "operation": "Query States",
+  "stateType": "net.corda.finance.contracts.asset.Cash$State",
   "criteria": {
-    "linearId": "550e8400-e29b-41d4-a716-446655440000"
-  },
-  "pageSize": 10
+    "owner": "O=PartyA,L=London,C=GB"
+  }
 }
 ```
 
 ```javascript
-// Execute a payment flow
+// Start a cash payment flow
 {
-  "resource": "flowExecution", 
-  "operation": "startFlow",
-  "flowName": "PaymentFlow",
+  "resource": "Flow",
+  "operation": "Start Flow",
+  "flowName": "net.corda.finance.flows.CashPaymentFlow",
   "parameters": {
-    "amount": 1000,
-    "currency": "USD",
-    "recipient": "O=BankB,L=New York,C=US"
+    "amount": "100.00 USD",
+    "recipient": "O=PartyB,L=New York,C=US",
+    "anonymous": false
   }
 }
 ```
 
 ```javascript
-// Transfer tokens between parties
+// Get network map information
 {
-  "resource": "tokenManagement",
-  "operation": "transferTokens",
-  "tokenType": "com.example.DigitalCurrency",
-  "amount": 500,
-  "recipient": "O=PartyB,L=London,C=GB",
-  "memo": "Payment for services"
+  "resource": "Network", 
+  "operation": "Get Network Map",
+  "includeInactive": false,
+  "filterByServices": ["corda.notary.validating"]
 }
 ```
 
 ```javascript
-// Upload contract attachment
+// Upload contract JAR attachment
 {
-  "resource": "attachments",
-  "operation": "uploadAttachment",
-  "filename": "contract.jar",
-  "content": "base64EncodedContent",
-  "metadata": {
-    "version": "1.0",
-    "description": "Updated contract JAR"
-  }
+  "resource": "Attachment",
+  "operation": "Upload Attachment",
+  "filename": "finance-contracts-4.8.jar",
+  "content": "{{$binary.data}}",
+  "uploader": "O=PartyA,L=London,C=GB"
 }
 ```
 
@@ -185,12 +182,12 @@ n8n start
 
 | Error | Description | Solution |
 |-------|-------------|----------|
-| RPC Connection Failed | Cannot connect to Corda node RPC interface | Verify host, port, and credentials. Check node status |
-| Flow Not Found | Specified flow class not available on node | Verify flow name and ensure CorDapp is installed |
-| Invalid State Reference | State reference does not exist or is consumed | Check state reference format and vault status |
-| Insufficient Permissions | API key lacks required permissions | Update RPC user permissions or use different credentials |
-| Network Timeout | Operation exceeded timeout threshold | Increase timeout value or check network connectivity |
-| Attachment Hash Mismatch | Uploaded attachment failed integrity check | Verify file content and retry upload |
+| RPC Connection Failed | Cannot connect to Corda node RPC endpoint | Verify node URL, credentials, and network connectivity |
+| Flow Not Found | Specified flow class doesn't exist on node | Check available flows and verify class name spelling |
+| Insufficient Permissions | User lacks required permissions for operation | Ensure RPC user has appropriate role assignments |
+| Invalid State Query | Vault query syntax or criteria is malformed | Review query parameters and state type specifications |
+| Transaction Verification Failed | Transaction signatures or structure invalid | Check transaction inputs, outputs, and required signatures |
+| Attachment Hash Mismatch | Downloaded attachment doesn't match expected hash | Verify attachment integrity and re-upload if corrupted |
 
 ## Development
 
@@ -236,4 +233,4 @@ Contributions are welcome! Please ensure:
 
 - **Issues**: [GitHub Issues](https://github.com/Velocity-BPA/n8n-nodes-r3-corda/issues)
 - **R3 Corda Documentation**: [docs.corda.net](https://docs.corda.net)
-- **Corda Community**: [developer.r3.com](https://developer.r3.com)
+- **Corda Developer Community**: [developer.r3.com](https://developer.r3.com)
